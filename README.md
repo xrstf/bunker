@@ -16,6 +16,20 @@ restrictions are too tight for such a stack.
 Pods with the annotation `xrstf.de/bunker=ignore` will have their logs ignored and
 not persisted. Anything else received from fluent-bit will get written to disk.
 
+## fluent-bit Configuration
+
+Add a new `[OUTPUT]` section to your config like this:
+
+    [OUTPUT]
+        Name             http
+        Match            *
+        Host             bunker
+        Port             9095
+        URI              /ingest
+        Format           json
+        header_tag       Fluentbit-Tag
+        json_date_format iso8601
+
 ## Metrics
 
 Bunker exposes a Prometheus-compatible `/metrics` endpoint, providing these metrics:
