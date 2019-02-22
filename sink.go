@@ -104,6 +104,8 @@ func (s *sink) Close() {
 }
 
 func (s *sink) handleRecord(record *Record) {
+	var err error
+
 	// build final file path
 	replacer := strings.NewReplacer(record.StringReplacements()...)
 	path := filepath.Join(s.config.Target, replacer.Replace(s.config.Pattern))
@@ -113,13 +115,21 @@ func (s *sink) handleRecord(record *Record) {
 
 	writer, ok := s.writers[path]
 	if !ok {
-		writer, _ = NewWriter(path)
-		s.writers[path] = writer
+		writer, err = NewWriter(path)
+		if err != nil {
+			s.logger.Errorf("Failed to open file writer: %v", err)
+		} else {
+			s.writers[path] = writer
+		}
 	}
 
 	s.lock.Unlock()
 
-	writer.Write(record)
+	if writer != nil {
+		if err = writer.Write(record); err != nil {
+			s.logger.Errorf("Failed to write record: %v", err)
+		}
+	}
 }
 
 func (s *sink) closeWriter(path string) {
