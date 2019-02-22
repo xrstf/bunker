@@ -36,7 +36,12 @@ func main() {
 
 	logger := makeLogger(config)
 
-	sink, err := NewSink(config, logger)
+	filter, err := NewFilter(config)
+	if err != nil {
+		logger.Fatalf("Failed to create filter: %v", err)
+	}
+
+	sink, err := NewSink(config, filter, logger)
 	if err != nil {
 		logger.Fatalf("Failed to start log processor: %v", err)
 	}

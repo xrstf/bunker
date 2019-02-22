@@ -12,6 +12,7 @@ import (
 
 type sink struct {
 	config       Config
+	filter       *filter
 	logger       logrus.FieldLogger
 	jobs         chan interface{}
 	lock         sync.RWMutex
@@ -21,9 +22,10 @@ type sink struct {
 	gcAlive      chan struct{}
 }
 
-func NewSink(config Config, logger logrus.FieldLogger) (*sink, error) {
+func NewSink(config Config, filter *filter, logger logrus.FieldLogger) (*sink, error) {
 	return &sink{
 		config:       config,
+		filter:       filter,
 		logger:       logger,
 		jobs:         make(chan interface{}, 10000),
 		lock:         sync.RWMutex{},
@@ -69,9 +71,15 @@ func (s *sink) GarbageCollect() {
 }
 
 func (s *sink) AddPayload(payload Payload) int {
+	s.logger.Debugf("Adding payload (len=%d) ...", len(payload))
+
 	for _, record := range payload {
-		s.jobs <- recordJob{record}
+		if s.filter == nil || s.filter.IncludeRecord(record) {
+			s.jobs <- recordJob{record}
+		}
 	}
+
+	s.logger.Debug("Done adding payload.")
 
 	return len(payload)
 }
@@ -112,6 +120,7 @@ func (s *sink) handleRecord(record Record) {
 }
 
 func (s *sink) closeWriter(path string) {
+	s.logger.Debugf("Closing writer %s ...", path)
 	s.lock.Lock()
 
 	writer, ok := s.writers[path]
@@ -121,6 +130,7 @@ func (s *sink) closeWriter(path string) {
 	}
 
 	s.lock.Unlock()
+	s.logger.Debug("Done closing writer.")
 }
 
 func (s *sink) closeExpiredWriters() {
@@ -132,6 +142,7 @@ func (s *sink) closeAllWriters() {
 }
 
 func (s *sink) closeWritersBy(t time.Time) {
+	s.logger.Debugf("Starting to close writers... (t = %v)", t)
 	s.lock.RLock()
 
 	for path, writer := range s.writers {
@@ -141,6 +152,7 @@ func (s *sink) closeWritersBy(t time.Time) {
 	}
 
 	s.lock.RUnlock()
+	s.logger.Debug("Done closing writers.")
 }
 
 func (s *sink) Describe(descriptions chan<- *prometheus.Desc) {
@@ -148,9 +160,13 @@ func (s *sink) Describe(descriptions chan<- *prometheus.Desc) {
 }
 
 func (s *sink) Collect(metrics chan<- prometheus.Metric) {
+	s.logger.Debug("Collecting sink metrics...")
+
 	s.lock.RLock()
 	total := len(s.writers)
 	s.lock.RUnlock()
+
+	s.logger.Debug("Sink metrics collection done.")
 
 	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "bunker_open_writers_total",
