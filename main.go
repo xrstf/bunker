@@ -19,10 +19,11 @@ import (
 )
 
 type Config struct {
-	Target  string
-	Pattern string
-	Listen  string
-	Verbose bool
+	Target    string
+	Pattern   string
+	Listen    string
+	TagHeader string
+	Verbose   bool
 }
 
 func main() {
@@ -31,6 +32,7 @@ func main() {
 	flag.StringVar(&config.Target, "target", "records", "path to where incoming records should be written to")
 	flag.StringVar(&config.Pattern, "pattern", "%date%/%kubernetes_namespace_name%.json", "filename pattern to group records into files")
 	flag.StringVar(&config.Listen, "listen", "0.0.0.0:9095", "address and port to listen on")
+	flag.StringVar(&config.TagHeader, "tag-header", "Fluentbit-Tag", "name of the HTTP header carrying the fluent tag name")
 	flag.BoolVar(&config.Verbose, "verbose", false, "incrases logging verbosity")
 	flag.Parse()
 
@@ -58,7 +60,7 @@ func main() {
 	e.HideBanner = true
 	e.HidePort = true
 
-	e.POST("/ingest", makeIngestRequestHandler(sink), metricsMiddleware)
+	e.POST("/ingest", makeIngestRequestHandler(&config, sink), metricsMiddleware)
 	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
 	// Start server
@@ -95,7 +97,7 @@ func shutdown(server *echo.Echo, sink *sink, logger logrus.FieldLogger) {
 	logger.Info("Processor closed, exiting.")
 }
 
-func makeIngestRequestHandler(sink *sink) echo.HandlerFunc {
+func makeIngestRequestHandler(config *Config, sink *sink) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		req := c.Request()
 
@@ -105,10 +107,13 @@ func makeIngestRequestHandler(sink *sink) echo.HandlerFunc {
 			return c.String(http.StatusNotAcceptable, "Invalid Content-Type, ensure you send JSON payloads.")
 		}
 
+		payload := Payload{
+			Tag: req.Header.Get(config.TagHeader),
+		}
+
 		// decode payload
 		defer req.Body.Close()
-		var payload Payload
-		err := json.NewDecoder(req.Body).Decode(&payload)
+		err := json.NewDecoder(req.Body).Decode(&payload.Records)
 		if err != nil {
 			return c.String(http.StatusBadRequest, "Body could not be parsed as JSON")
 		}

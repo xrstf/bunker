@@ -11,6 +11,7 @@ restrictions are too tight for such a stack.
     $ ./bunker \
         [-target=records] \
         [-pattern=%date%/%kubernetes_namespace_name%.json] \
+        [-tag-header=Fluentbit-Tag] \
         [-listen=0.0.0.0:9095]
 
 Pods with the annotation `xrstf.de/bunker=ignore` will have their logs ignored and

@@ -1,6 +1,7 @@
 package main
 
 type recordJob struct {
+	tag    string
 	record *Record
 }
 

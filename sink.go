@@ -43,7 +43,7 @@ func (s *sink) ProcessQueue() {
 	for job := range s.jobs {
 		switch j := job.(type) {
 		case recordJob:
-			s.handleRecord(j.record)
+			s.handleRecord(j.record, j.tag)
 
 		case closeWriterJob:
 			s.closeWriter(j.path)
@@ -71,20 +71,23 @@ func (s *sink) GarbageCollect() {
 }
 
 func (s *sink) AddPayload(payload Payload) (int, int) {
-	s.logger.Debugf("Adding payload (len=%d) ...", len(payload))
+	s.logger.Debugf("Adding payload (len=%d) ...", len(payload.Records))
 
 	num := 0
 
-	for _, record := range payload {
+	for _, record := range payload.Records {
 		if s.filter == nil || s.filter.IncludeRecord(record) {
-			s.jobs <- recordJob{record}
+			s.jobs <- recordJob{
+				tag:    payload.Tag,
+				record: record,
+			}
 			num++
 		}
 	}
 
 	s.logger.Debug("Done adding payload.")
 
-	return len(payload), num
+	return len(payload.Records), num
 }
 
 // Close stops the garbage collection and the queue processor
@@ -103,11 +106,11 @@ func (s *sink) Close() {
 	<-s.workerAlive
 }
 
-func (s *sink) handleRecord(record *Record) {
+func (s *sink) handleRecord(record *Record, tag string) {
 	var err error
 
 	// build final file path
-	replacer := strings.NewReplacer(record.StringReplacements()...)
+	replacer := strings.NewReplacer(record.StringReplacements(tag)...)
 	path := filepath.Join(s.config.Target, replacer.Replace(s.config.Pattern))
 
 	// attempt to find an existing writer

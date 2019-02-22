@@ -1,12 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
 )
 
-type Payload []*Record
+type Payload struct {
+	Tag     string
+	Records []*Record
+}
 
 type Record struct {
 	Date       time.Time          `json:"date"`
@@ -14,15 +18,15 @@ type Record struct {
 	Kubernetes KubernetesMetadata `json:"kubernetes"`
 }
 
-func (r *Record) StringReplacements() []string {
+func (r *Record) StringReplacements(tag string) []string {
 	t := r.Date.UTC()
 
-	replacements := []string{
-		"%year%", t.Format("2006"),
-		"%month%", t.Format("01"),
-		"%dayofmonth%", t.Format("02"),
-		"%date%", t.Format("2006-01-02"),
-	}
+	replacements := make([]string, 0)
+	replacements = addReplacement(replacements, "year", t.Format("2006"))
+	replacements = addReplacement(replacements, "month", t.Format("01"))
+	replacements = addReplacement(replacements, "dayofmonth", t.Format("02"))
+	replacements = addReplacement(replacements, "date", t.Format("2006-01-02"))
+	replacements = addReplacement(replacements, "tag", tag)
 
 	return append(replacements, r.Kubernetes.StringReplacements()...)
 }
@@ -39,24 +43,34 @@ type KubernetesMetadata struct {
 }
 
 var labelSanitiser = regexp.MustCompile(`[^a-z0-9_]`)
-var fsSanitiser = regexp.MustCompile(`[^a-zA-Z0-9_,;-]`)
 
 func (m *KubernetesMetadata) StringReplacements() []string {
-	replacements := []string{
-		"%kubernetes_pod_name%", m.PodName,
-		"%kubernetes_namespace_name%", m.NamespaceName,
-		"%kubernetes_pod_id%", m.PodID,
-		"%kubernetes_host%", m.Host,
-		"%kubernetes_container_name%", m.ContainerName,
-		"%kubernetes_docker_id%", m.DockerID,
-	}
+	replacements := make([]string, 0)
+	replacements = addReplacement(replacements, "kubernetes_pod_name", m.PodName)
+	replacements = addReplacement(replacements, "kubernetes_namespace_name", m.NamespaceName)
+	replacements = addReplacement(replacements, "kubernetes_pod_id", m.PodID)
+	replacements = addReplacement(replacements, "kubernetes_host", m.Host)
+	replacements = addReplacement(replacements, "kubernetes_container_name", m.ContainerName)
+	replacements = addReplacement(replacements, "kubernetes_docker_id", m.DockerID)
 
 	for name, value := range m.Labels {
-		name = labelSanitiser.ReplaceAllString(strings.ToLower(name), "_")
-		value = fsSanitiser.ReplaceAllString(value, "_")
+		name = fmt.Sprintf("kubernetes_label_%s", labelSanitiser.ReplaceAllString(strings.ToLower(name), "_"))
 
-		replacements = append(replacements, name, value)
+		replacements = addReplacement(replacements, name, value)
 	}
 
 	return replacements
+}
+
+var fsSanitiser = regexp.MustCompile(`[^a-zA-Z0-9_,;. -]`)
+
+func addReplacement(list []string, name string, value string) []string {
+	if value == "" {
+		value = fmt.Sprintf("NO_%s", strings.ToUpper(name))
+	}
+
+	name = fmt.Sprintf("%%%s%%", name)
+	list = append(list, name, fsSanitiser.ReplaceAllString(value, "_"))
+
+	return list
 }
