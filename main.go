@@ -34,14 +34,14 @@ func main() {
 	flag.BoolVar(&config.Verbose, "verbose", false, "incrases logging verbosity")
 	flag.Parse()
 
-	logger := makeLogger(config)
+	logger := makeLogger(&config)
 
-	filter, err := NewFilter(config)
+	filter, err := NewFilter(&config)
 	if err != nil {
 		logger.Fatalf("Failed to create filter: %v", err)
 	}
 
-	sink, err := NewSink(config, filter, logger)
+	sink, err := NewSink(&config, filter, logger)
 	if err != nil {
 		logger.Fatalf("Failed to start log processor: %v", err)
 	}
@@ -58,7 +58,7 @@ func main() {
 	e.HideBanner = true
 	e.HidePort = true
 
-	e.POST("/ingest", makeIngestRequestHandler(config, sink), metricsMiddleware)
+	e.POST("/ingest", makeIngestRequestHandler(sink), metricsMiddleware)
 	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
 	// Start server
@@ -95,7 +95,7 @@ func shutdown(server *echo.Echo, sink *sink, logger logrus.FieldLogger) {
 	logger.Info("Processor closed, exiting.")
 }
 
-func makeIngestRequestHandler(config Config, sink *sink) echo.HandlerFunc {
+func makeIngestRequestHandler(sink *sink) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		req := c.Request()
 
@@ -128,7 +128,7 @@ func makeIngestRequestHandler(config Config, sink *sink) echo.HandlerFunc {
 	}
 }
 
-func makeLogger(config Config) logrus.FieldLogger {
+func makeLogger(config *Config) logrus.FieldLogger {
 	logger := logrus.New()
 	logger.SetLevel(logrus.InfoLevel)
 

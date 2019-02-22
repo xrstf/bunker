@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type Payload []Record
+type Payload []*Record
 
 type Record struct {
 	Date       time.Time          `json:"date"`

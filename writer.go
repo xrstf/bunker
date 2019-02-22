@@ -45,7 +45,7 @@ func (w *writer) Close() error {
 	return err
 }
 
-func (w *writer) Write(record Record) error {
+func (w *writer) Write(record *Record) error {
 	w.Touch()
 
 	encoder := json.NewEncoder(w.file)

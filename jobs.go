@@ -1,7 +1,7 @@
 package main
 
 type recordJob struct {
-	record Record
+	record *Record
 }
 
 type closeWriterJob struct {

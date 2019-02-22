@@ -11,7 +11,7 @@ import (
 )
 
 type sink struct {
-	config       Config
+	config       *Config
 	filter       *filter
 	logger       logrus.FieldLogger
 	jobs         chan interface{}
@@ -22,7 +22,7 @@ type sink struct {
 	gcAlive      chan struct{}
 }
 
-func NewSink(config Config, filter *filter, logger logrus.FieldLogger) (*sink, error) {
+func NewSink(config *Config, filter *filter, logger logrus.FieldLogger) (*sink, error) {
 	return &sink{
 		config:       config,
 		filter:       filter,
@@ -103,7 +103,7 @@ func (s *sink) Close() {
 	<-s.workerAlive
 }
 
-func (s *sink) handleRecord(record Record) {
+func (s *sink) handleRecord(record *Record) {
 	// build final file path
 	replacer := strings.NewReplacer(record.StringReplacements()...)
 	path := filepath.Join(s.config.Target, replacer.Replace(s.config.Pattern))
