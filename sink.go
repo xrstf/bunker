@@ -73,15 +73,18 @@ func (s *sink) GarbageCollect() {
 func (s *sink) AddPayload(payload Payload) int {
 	s.logger.Debugf("Adding payload (len=%d) ...", len(payload))
 
+	num := 0
+
 	for _, record := range payload {
 		if s.filter == nil || s.filter.IncludeRecord(record) {
 			s.jobs <- recordJob{record}
+			num++
 		}
 	}
 
 	s.logger.Debug("Done adding payload.")
 
-	return len(payload)
+	return num
 }
 
 // Close stops the garbage collection and the queue processor
