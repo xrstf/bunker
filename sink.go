@@ -25,7 +25,7 @@ func NewSink(config Config, logger logrus.FieldLogger) (*sink, error) {
 	return &sink{
 		config:       config,
 		logger:       logger,
-		jobs:         make(chan interface{}, 10),
+		jobs:         make(chan interface{}, 10000),
 		lock:         sync.RWMutex{},
 		writers:      make(map[string]*writer),
 		workerAlive:  make(chan struct{}),
