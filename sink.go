@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -140,4 +141,22 @@ func (s *sink) closeWritersBy(t time.Time) {
 	}
 
 	s.lock.RUnlock()
+}
+
+func (s *sink) Describe(descriptions chan<- *prometheus.Desc) {
+	descriptions <- prometheus.NewDesc("bunker_open_writers_total", "Total number of currently open file writers", nil, nil)
+}
+
+func (s *sink) Collect(metrics chan<- prometheus.Metric) {
+	s.lock.RLock()
+	total := len(s.writers)
+	s.lock.RUnlock()
+
+	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "bunker_open_writers_total",
+	})
+
+	gauge.Set(float64(total))
+
+	metrics <- gauge
 }

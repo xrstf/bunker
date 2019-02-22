@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
@@ -38,6 +39,11 @@ func main() {
 	sink, err := NewSink(config, logger)
 	if err != nil {
 		logger.Fatalf("Failed to start log processor: %v", err)
+	}
+
+	err = prometheus.Register(sink)
+	if err != nil {
+		logger.Fatalf("Failed to register sink metrics collector: %v", err)
 	}
 
 	go sink.GarbageCollect()

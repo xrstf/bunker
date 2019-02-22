@@ -10,12 +10,12 @@ import (
 
 var (
 	requestsProcessed = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "fluentbit_sink_requests_total",
+		Name: "bunker_requests_total",
 		Help: "The total number of handled requests",
 	}, []string{"status"})
 
 	recordsIngested = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "fluentbit_sink_ingested_records_total",
+		Name: "bunker_ingested_records_total",
 		Help: "The total number of ingested records",
 	})
 )
