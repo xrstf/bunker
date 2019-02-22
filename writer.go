@@ -46,6 +46,8 @@ func (w *writer) Close() error {
 }
 
 func (w *writer) Write(record Record) error {
+	w.Touch()
+
 	encoder := json.NewEncoder(w.file)
 	if err := encoder.Encode(record); err != nil {
 		return fmt.Errorf("failed to write record: %v", err)
