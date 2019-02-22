@@ -70,7 +70,7 @@ func (s *sink) GarbageCollect() {
 	}
 }
 
-func (s *sink) AddPayload(payload Payload) int {
+func (s *sink) AddPayload(payload Payload) (int, int) {
 	s.logger.Debugf("Adding payload (len=%d) ...", len(payload))
 
 	num := 0
@@ -84,7 +84,7 @@ func (s *sink) AddPayload(payload Payload) int {
 
 	s.logger.Debug("Done adding payload.")
 
-	return num
+	return len(payload), num
 }
 
 // Close stops the garbage collection and the queue processor

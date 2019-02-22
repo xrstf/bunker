@@ -14,6 +14,11 @@ var (
 		Help: "The total number of handled requests",
 	}, []string{"status"})
 
+	recordsReceived = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bunker_received_records_total",
+		Help: "The total number of received records",
+	})
+
 	recordsIngested = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "bunker_ingested_records_total",
 		Help: "The total number of ingested records",

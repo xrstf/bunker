@@ -114,8 +114,9 @@ func makeIngestRequestHandler(config Config, sink *sink) echo.HandlerFunc {
 		}
 
 		// process payload
-		processed := sink.AddPayload(payload)
-		recordsIngested.Add(float64(processed))
+		received, ingested := sink.AddPayload(payload)
+		recordsIngested.Add(float64(ingested))
+		recordsReceived.Add(float64(received))
 
 		if err != nil {
 			log.Printf("Failed to store payload: %v", err)
