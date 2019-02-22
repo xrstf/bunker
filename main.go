@@ -1,36 +1,90 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"flag"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/labstack/echo"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/sirupsen/logrus"
 )
 
 type Config struct {
 	Target  string
 	Pattern string
+	Listen  string
+	Verbose bool
 }
 
 func main() {
-	config := Config{
-		Target:  "records",
-		Pattern: "%date%/%kubernetes_namespace_name%/%kubernetes_pod_name%-%kubernetes_container_name%.json",
+	config := Config{}
+
+	flag.StringVar(&config.Target, "target", "records", "path to where incoming records should be written to")
+	flag.StringVar(&config.Pattern, "pattern", "%date%/%kubernetes_namespace_name%.json", "filename pattern to group records into files")
+	flag.StringVar(&config.Listen, "listen", "0.0.0.0:9095", "address and port to listen on")
+	flag.BoolVar(&config.Verbose, "verbose", false, "incrases logging verbosity")
+	flag.Parse()
+
+	logger := makeLogger(config)
+
+	sink, err := NewSink(config, logger)
+	if err != nil {
+		logger.Fatalf("Failed to start log processor: %v", err)
 	}
 
+	go sink.GarbageCollect()
+	go sink.ProcessQueue()
+
 	e := echo.New()
-	e.POST("/ingest", makeIngestRequestHandler(config), metricsMiddleware)
+	e.HideBanner = true
+	e.HidePort = true
+
+	e.POST("/ingest", makeIngestRequestHandler(config, sink), metricsMiddleware)
 	e.GET("/metrics", echo.WrapHandler(promhttp.Handler()))
 
-	e.Logger.Fatal(e.Start(":1323"))
+	// Start server
+	go func() {
+		logger.Infof("Starting to listen on %s…", config.Listen)
+		if err := e.Start(config.Listen); err != nil && err.Error() != "http: Server closed" {
+			logger.Fatalf("Could not start server: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server with
+	// a timeout of 10 seconds.
+	quit := make(chan os.Signal, 5)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	shutdown(e, sink, logger)
 }
 
-func makeIngestRequestHandler(config Config) echo.HandlerFunc {
-	sink := NewSink(config)
+func shutdown(server *echo.Echo, sink *sink, logger logrus.FieldLogger) {
+	logger.Info("Received signal, shutting down…")
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		logger.Fatalf("Failed to shutdown HTTP server: %v", err)
+	}
+
+	logger.Info("HTTP server stopped.")
+
+	logger.Info("Shutting down log processor…")
+	sink.Close()
+	logger.Info("Processor closed, exiting.")
+}
+
+func makeIngestRequestHandler(config Config, sink *sink) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		req := c.Request()
 
@@ -49,7 +103,7 @@ func makeIngestRequestHandler(config Config) echo.HandlerFunc {
 		}
 
 		// process payload
-		processed, err := sink.StorePayload(payload)
+		processed := sink.AddPayload(payload)
 		recordsIngested.Add(float64(processed))
 
 		if err != nil {
@@ -60,4 +114,15 @@ func makeIngestRequestHandler(config Config) echo.HandlerFunc {
 		// done
 		return c.NoContent(http.StatusOK)
 	}
+}
+
+func makeLogger(config Config) logrus.FieldLogger {
+	logger := logrus.New()
+	logger.SetLevel(logrus.InfoLevel)
+
+	if config.Verbose {
+		logger.SetLevel(logrus.DebugLevel)
+	}
+
+	return logger
 }
